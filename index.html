@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seating Arrangement Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF6B6B;
+            --secondary: #4ECDC4;
+            --accent: #FFE66D;
+            --dark: #2C3E50;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        .neobrutalism {
+            border: 4px solid black;
+            box-shadow: 6px 6px 0 black;
+            transition: all 0.2s;
+        }
+
+        .neobrutalism:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0 black;
+        }
+
+        .grid-item {
+            border: 3px solid black;
+            box-shadow: 4px 4px 0 black;
+            cursor: move;
+        }
+
+        .camera-input {
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+    <div class="loading" id="loadingScreen">
+        <div class="text-center">
+            <div class="bi bi-arrow-repeat animate-spin text-4xl mb-2"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto max-w-4xl">
+        <h1 class="text-4xl font-bold mb-8 text-center">Seating Arrangement Manager</h1>
+
+        <!-- Layout Selection -->
+        <div id="layoutSelection" class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">Select Layout</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <button class="neobrutalism p-4 bg-[var(--primary)] text-white" onclick="selectLayout('circle')">Circle</button>
+                <button class="neobrutalism p-4 bg-[var(--secondary)] text-white" onclick="selectLayout('rectangle')">Rectangle</button>
+                <button class="neobrutalism p-4 bg-[var(--accent)] text-black" onclick="selectLayout('square')">Square</button>
+                <button class="neobrutalism p-4 bg-[var(--primary)] text-white" onclick="selectLayout('multipleCircles')">Multiple Circles</button>
+                <button class="neobrutalism p-4 bg-[var(--secondary)] text-white" onclick="selectLayout('multipleRectangles')">Multiple Rectangles</button>
+                <button class="neobrutalism p-4 bg-[var(--accent)] text-black" onclick="selectLayout('auditorium')">Auditorium</button>
+            </div>
+        </div>
+
+        <!-- Student Entry -->
+        <div id="studentEntry" class="mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-4">Add Students</h2>
+            <div class="flex flex-col gap-4">
+                <input type="text" id="studentName" class="neobrutalism p-4 bg-white" placeholder="Enter student name">
+                <button onclick="addStudent()" class="neobrutalism p-4 bg-[var(--primary)] text-white">Add Student</button>
+                <div class="relative">
+                    <input type="file" id="cameraInput" accept="image/*" capture="camera" class="camera-input" onchange="processImage(event)">
+                    <button onclick="document.getElementById('cameraInput').click()" class="neobrutalism p-4 bg-[var(--secondary)] text-white w-full">
+                        <i class="bi bi-camera"></i> Import from Photo
+                    </button>
+                </div>
+            </div>
+            <div id="studentList" class="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- Rules Section -->
+        <div id="rulesSection" class="mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-4">Set Rules</h2>
+            <div class="flex flex-col gap-4">
+                <div class="neobrutalism p-4 bg-white">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="windowRule" class="w-5 h-5">
+                        <span>Window Seating Priority</span>
+                    </label>
+                </div>
+                <div class="neobrutalism p-4 bg-white">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="frontRowRule" class="w-5 h-5">
+                        <span>Front Row Priority</span>
+                    </label>
+                </div>
+                <div class="neobrutalism p-4 bg-white">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="groupRule" class="w-5 h-5">
+                        <span>Keep Groups Together</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seating Grid -->
+        <div id="seatingGrid" class="mb-8 hidden">
+            <h2 class="text-2xl font-bold mb-4">Seating Arrangement</h2>
+            <div id="gridContainer" class="grid gap-4"></div>
+        </div>
+
+        <!-- Actions -->
+        <div id="actions" class="grid grid-cols-2 gap-4 hidden">
+            <button onclick="generateArrangement()" class="neobrutalism p-4 bg-[var(--primary)] text-white">Generate</button>
+            <button onclick="saveArrangement()" class="neobrutalism p-4 bg-[var(--secondary)] text-white">Save</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+        window.students = [];
+        window.currentLayout = null;
+        window.arrangements = [];
+
+        function selectLayout(layout) {
+            window.currentLayout = layout;
+            document.getElementById('studentEntry').classList.remove('hidden');
+            document.getElementById('rulesSection').classList.remove('hidden');
+            document.getElementById('actions').classList.remove('hidden');
+        }
+
+        window.selectLayout = selectLayout;
+
+        function addStudent() {
+            const name = document.getElementById('studentName').value.trim();
+            if (name) {
+                window.students.push(name);
+                updateStudentList();
+                document.getElementById('studentName').value = '';
+            }
+        }
+
+        window.addStudent = addStudent;
+
+        function updateStudentList() {
+            const list = document.getElementById('studentList');
+            list.innerHTML = '';
+            window.students.forEach((student, index) => {
+                const div = document.createElement('div');
+                div.className = 'neobrutalism p-2 bg-white flex justify-between items-center';
+                div.innerHTML = `
+                    <span>${student}</span>
+                    <button onclick="removeStudent(${index})" class="text-red-500"><i class="bi bi-x-lg"></i></button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        window.updateStudentList = updateStudentList;
+
+        function removeStudent(index) {
+            window.students.splice(index, 1);
+            updateStudentList();
+        }
+
+        window.removeStudent = removeStudent;
+
+        async function processImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('loadingScreen').style.display = 'flex';
+
+            try {
+                // Here you would normally send the image to your AI endpoint
+                // For demo purposes, we'll simulate processing
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Simulate getting some names from the image
+                const simulatedNames = ['John Doe', 'Jane Smith', 'Bob Johnson'];
+                window.students = [...window.students, ...simulatedNames];
+                updateStudentList();
+            } catch (error) {
+                console.error('Error processing image:', error);
+                alert('Error processing image. Please try again.');
+            } finally {
+                document.getElementById('loadingScreen').style.display = 'none';
+            }
+        }
+
+        window.processImage = processImage;
+
+        function generateArrangement() {
+            const gridContainer = document.getElementById('gridContainer');
+            document.getElementById('seatingGrid').classList.remove('hidden');
+            gridContainer.innerHTML = '';
+
+            // Example grid generation for demonstration
+            const cols = window.currentLayout === 'circle' ? 3 : 4;
+            gridContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            window.students.forEach((student, index) => {
+                const seat = document.createElement('div');
+                seat.className = 'grid-item p-4 bg-white text-center';
+                seat.setAttribute('draggable', true);
+                seat.textContent = student;
+                
+                // Add drag and drop functionality
+                seat.addEventListener('dragstart', dragStart);
+                seat.addEventListener('dragover', dragOver);
+                seat.addEventListener('drop', drop);
+                
+                gridContainer.appendChild(seat);
+            });
+        }
+
+        window.generateArrangement = generateArrangement;
+
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.textContent);
+            e.target.classList.add('opacity-50');
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const draggedText = e.dataTransfer.getData('text/plain');
+            const targetText = e.target.textContent;
+            
+            // Swap the text content
+            e.target.textContent = draggedText;
+            document.querySelector('.opacity-50').textContent = targetText;
+            document.querySelector('.opacity-50').classList.remove('opacity-50');
+        }
+
+        function saveArrangement() {
+            const arrangement = {
+                layout: window.currentLayout,
+                students: [...window.students],
+                timestamp: new Date().toISOString()
+            };
+            window.arrangements.push(arrangement);
+            alert('Arrangement saved successfully!');
+        }
+
+        window.saveArrangement = saveArrangement;
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
